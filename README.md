@@ -3,12 +3,15 @@
 在繪師的個人頁一鍵偵測名稱、頭像與簡介裡的其他平台連結，確認後加入「[繪師去哪了](https://artistwhere.com)」資料庫。繪師的帳號被停權、刪除或搬家時，你還能找到他。
 
 - 網站：<https://artistwhere.com>
+- Chrome 商店：<https://chromewebstore.google.com/detail/clilipmdghipcmgfmgmaonoihlmaonij>
 - 隱私權政策：<https://artistwhere.com/privacy.html>
 - 功能說明：<https://artistwhere.com/about.html>
 
 ## 安裝
 
-需要 Chrome、Brave 或 Edge（Chromium 系列瀏覽器）。
+**Chrome：直接到 [Chrome 線上應用程式商店](https://chromewebstore.google.com/detail/clilipmdghipcmgfmgmaonoihlmaonij) 安裝**，之後會自動更新，這是最簡單的方式。
+
+Edge、Brave 或想自己從原始碼安裝的人，用下面的手動安裝（Chromium 系列瀏覽器都可以）：
 
 1. 到 [Releases](../../releases/latest) 下載 `deadlive-extension-1.1.0.zip`。
 2. **解壓縮**到一個固定的資料夾（例如 `文件/deadlive-extension`）。安裝後不要刪除或移動這個資料夾，瀏覽器是直接從這裡讀檔案的。
