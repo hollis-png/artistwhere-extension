@@ -10,7 +10,7 @@
 
 需要 Chrome、Brave 或 Edge（Chromium 系列瀏覽器）。
 
-1. 到 [Releases](../../releases/latest) 下載 `deadlive-extension-1.0.0.zip`。
+1. 到 [Releases](../../releases/latest) 下載 `deadlive-extension-1.1.0.zip`。
 2. **解壓縮**到一個固定的資料夾（例如 `文件/deadlive-extension`）。安裝後不要刪除或移動這個資料夾，瀏覽器是直接從這裡讀檔案的。
 3. 網址列輸入 `chrome://extensions`（Brave 是 `brave://extensions`，Edge 是 `edge://extensions`）。
 4. 打開右上角的「**開發人員模式**」。
@@ -38,6 +38,19 @@
 3. 已經開著的網頁要重新整理一次，新版才會生效。
 
 這個版本不會自動更新。之後若上架 Chrome 線上應用程式商店，改從商店安裝就會自動更新，請先在 `chrome://extensions` 移除這個版本。
+
+## 原始碼
+
+`source/` 資料夾是這個擴充功能的完整原始碼（TypeScript），Releases 裡的 zip 就是用它建置出來的，可以自行比對。
+
+建置需要 Node.js 與 esbuild（`npm i -D esbuild`）：
+
+```
+cd source
+esbuild background.ts --bundle --outfile=background.js --target=chrome120 --define:__API_BASE__='"https://artistwhere.com"'
+esbuild popup/popup.ts --bundle --outfile=popup/popup.js --target=chrome120 --define:__API_BASE__='"https://artistwhere.com"'
+for f in twitter facebook pixiv instagram generic; do esbuild content/$f.ts --bundle --outfile=content/$f.js --target=chrome120; done
+```
 
 ## 常見問題
 
