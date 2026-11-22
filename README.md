@@ -2,9 +2,9 @@
 
 在繪師的個人頁一鍵偵測名稱、頭像與簡介裡的其他平台連結，確認後加入「[繪師去哪了](https://artistwhere.com)」資料庫。繪師的帳號被停權、刪除或搬家時，你還能找到他。
 
-網站：https://artistwhere.com　
-隱私權政策：https://artistwhere.com/privacy.html　
-功能說明：https://artistwhere.com/about.html
+- 網站：<https://artistwhere.com>
+- 隱私權政策：<https://artistwhere.com/privacy.html>
+- 功能說明：<https://artistwhere.com/about.html>
 
 ## 安裝
 
