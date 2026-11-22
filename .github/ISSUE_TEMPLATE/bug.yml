@@ -1,0 +1,31 @@
+name: 回報問題
+description: 網站或擴充功能壞掉、顯示不對、偵測不到
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: 請不要貼密碼或登入資訊。若涉及個人資料，請改用網站上的「意見」按鈕。
+  - type: dropdown
+    id: where
+    attributes:
+      label: 哪裡出問題？
+      options: [網站, 瀏覽器擴充功能, 不確定]
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: 發生了什麼事？
+      description: 你做了什麼、預期看到什麼、實際看到什麼。有畫面截圖更好。
+    validations:
+      required: true
+  - type: input
+    id: url
+    attributes:
+      label: 相關網址（選填）
+      description: 例如出問題的繪師頁面，或擴充偵測不到的個人頁網址。
+  - type: input
+    id: env
+    attributes:
+      label: 瀏覽器與擴充版本（選填）
+      placeholder: 例如 Chrome 131、擴充 v1.1.0

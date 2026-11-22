@@ -1,0 +1,28 @@
+name: 要求移除或更正資料
+description: 繪師本人或相關人士希望移除、更正站上的帳號資料
+labels: ["移除資料"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **這裡是公開的**，任何人都看得到你寫的內容。只需要提供卡片網址就夠了，不要貼個人聯絡方式。
+        如果你不想公開說明原因，請登入網站後使用首頁右上角的「意見」按鈕。
+  - type: input
+    id: card
+    attributes:
+      label: 要處理的卡片網址
+      placeholder: https://artistwhere.com/a/artist_...
+    validations:
+      required: true
+  - type: dropdown
+    id: action
+    attributes:
+      label: 希望怎麼處理？
+      options: [整張卡片移除, 移除其中某些連結, 更正錯誤的連結或名稱]
+    validations:
+      required: true
+  - type: textarea
+    id: detail
+    attributes:
+      label: 補充說明（選填）
+      description: 例如要移除或更正哪幾條連結。
