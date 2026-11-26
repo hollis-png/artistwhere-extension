@@ -184,8 +184,9 @@ export function isNonAccountByRules(url: string, cfg: ExtensionConfig): boolean 
   if (/%3f/i.test(path) || /%3c|%3e/i.test(path)) return true;
   if (na.hosts.includes(host)) return true;
   if (na.officials.includes(`${host}${lower}`)) return true;
-  if (host === 'home.gamer.com.tw') return /^\/(?:homeindex\.php)?$/i.test(path) && !u.searchParams.get('owner');
-  if (host === 'gamer.com.tw' || host === 'm.gamer.com.tw') return bare;
+  // 巴哈姆特：只有某個人的小屋（?owner= 或 /帳號）是帳號；站內其他網址（導覽、登入、信箱、討論板、小屋的設定與子頁…）都不是
+  if (host === 'home.gamer.com.tw') return !((u.searchParams.get('owner') && /^[\w-]+$/.test(u.searchParams.get('owner') ?? '')) || (/^\/[\w-]+\/?$/.test(path) && !/^\/(?:setting|profile|creation|sticker|guild|static|assets|img)\/?$/i.test(path)));
+  if (host === 'gamer.com.tw' || host.endsWith('.gamer.com.tw')) return true;
 
   const segs = lower.split('/').filter(Boolean);
   for (const rule of na.rules) {

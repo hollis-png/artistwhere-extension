@@ -222,11 +222,6 @@ header h1 {
   margin-bottom: 0.15rem;
 }
 
-.preview-group-header input[type="checkbox"] {
-  accent-color: var(--primary);
-  flex-shrink: 0;
-}
-
 .preview-group-label {
   font-size: 0.75rem;
   font-weight: 700;
@@ -240,11 +235,6 @@ header h1 {
   padding: 0.2rem 0 0.2rem 1.2rem;
   font-size: 0.75rem;
   color: var(--text-main);
-}
-
-.preview-item input[type="checkbox"] {
-  accent-color: var(--primary);
-  flex-shrink: 0;
 }
 
 .preview-item img {
@@ -302,11 +292,6 @@ header h1 {
 
 .link-row:hover {
   background-color: var(--glass-bg);
-}
-
-.link-checkbox {
-  accent-color: var(--primary);
-  flex-shrink: 0;
 }
 
 .link-favicon {
@@ -646,3 +631,33 @@ header h1 {
 .list-btn:hover { border-color: var(--primary); }
 .list-btn[aria-pressed="true"] { background: var(--primary); border-color: var(--primary); color: #fff; }
 .list-btn:disabled { opacity: 0.5; cursor: default; }
+
+.auto-detect {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  margin-bottom: 0.6rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+button.auto-detect { width: 100%; padding: 0.35rem; border: 1px solid var(--glass-border); border-radius: 8px; background: transparent; font-family: inherit; }
+button.auto-detect[aria-pressed="true"] { color: #fff; background: var(--primary); border-color: var(--primary); }
+
+/* 預覽階段的去向選擇與站上現況標記 */
+.pick-btn { display: block; width: 100%; text-align: left; margin-bottom: 0.4rem; padding: 0.35rem 0.6rem; font: inherit; font-size: 0.8rem; font-weight: 600; color: var(--text-main); background: transparent; border: 1px solid var(--glass-border); border-radius: 8px; cursor: pointer; }
+.pick-btn[aria-pressed="true"] { color: #fff; background: var(--primary); border-color: var(--primary); }
+/* 加入／略過／部分 的文字開關，取代勾選框 */
+.toggle-btn { flex-shrink: 0; min-width: 2.6rem; padding: 0.05rem 0.4rem; font: inherit; font-size: 0.7rem; color: var(--text-muted); background: transparent; border: 1px solid var(--glass-border); border-radius: 8px; cursor: pointer; }
+.toggle-btn[aria-pressed="true"] { color: #fff; background: var(--primary); border-color: var(--primary); }
+.toggle-btn[aria-pressed="mixed"] { color: var(--primary); border-color: var(--primary); }
+.toggle-btn:disabled { opacity: 0.4; cursor: default; }
+.merge-summary { margin-top: 0.6rem; font-size: 0.75rem; color: var(--text-muted); }
+.merge-summary:empty { display: none; }
+.site-badge { margin-left: auto; padding: 0 0.4rem; font-size: 0.65rem; border-radius: 8px; white-space: nowrap; }
+.site-badge:empty { display: none; }
+.site-badge.known { color: var(--text-muted); border: 1px solid var(--glass-border); }
+.site-badge.fresh { color: #fff; background: var(--primary); }
+.type-btn.on-site::after { content: ' ✓站上'; font-size: 0.65rem; opacity: 0.7; }

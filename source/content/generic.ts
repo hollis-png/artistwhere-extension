@@ -1,5 +1,6 @@
 import type { ProfileData } from '../shared/types';
 import { DEFAULT_CONFIG, readCachedConfig, type ExtensionConfig } from '../shared/config';
+import { sameSite } from '../shared/site';
 
 // 雜訊網域與假名稱由網站端下發，彈出視窗負責更新快取；沒有快取就用內建預設
 let cfg: ExtensionConfig = DEFAULT_CONFIG;
@@ -39,6 +40,8 @@ function genericLinks(currentHost: string): string[] {
       if (host === currentHost) return;
       // 同站子網域（例如 patreon.com 頁面裡的 support./privacy.patreon.com 頁尾連結）不是本人的連結
       if (host.endsWith('.' + currentHost) || currentHost.endsWith('.' + host)) return;
+      // 同一個網站的其他子網域（home.gamer.com.tw 頁面裡的 user./mailbox.gamer.com.tw 登入、導覽連結）也不是這個人的連結
+      if (sameSite(host, currentHost)) return;
       if (cfg.noiseDomains.some(d => host.includes(d))) return;
       const ext = u.pathname.split('.').pop()?.toLowerCase() ?? '';
       if (['png','jpg','jpeg','gif','webp','css','js','svg','woff','woff2'].includes(ext)) return;

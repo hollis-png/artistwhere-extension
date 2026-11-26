@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "繪師去哪了 助手",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "在繪師的個人頁面一鍵偵測他的各平台帳號，確認後加入「繪師去哪了」資料庫。",
   "permissions": [
     "activeTab",

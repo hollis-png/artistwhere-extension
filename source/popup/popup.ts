@@ -1,7 +1,9 @@
-import { parseNameExists, candidateLabel, candidateReason, withChoice, type NameChoice, type NameCandidate } from './name-choice';
+import { parseNameExists, candidateLabel, candidateReason, withChoice, isSameArtist, defaultChoice, choiceStillValid, planMerge, submitLabel, type NameChoice, type NameCandidate } from './name-choice';
 import { brandIconSvg } from '../shared/platform-icons';
 import type { ProfileData } from '../shared/types';
 import { DEFAULT_CONFIG, loadConfig, isNonAccountByRules, type LinkCategory } from '../shared/config';
+import { isProfilePageUrl } from '../shared/profile-page';
+import { loadAutoDetect, saveAutoDetect } from '../shared/settings';
 
 declare const __API_BASE__: string;
 const API_BASE = __API_BASE__;
@@ -10,6 +12,8 @@ document.querySelectorAll<HTMLAnchorElement>('a[data-site]').forEach(a => { a.hr
 const MAX_EXPAND_ROUNDS = 10;
 // 抓取規則由網站端下發（見 shared/config.ts），init() 一開始載入；載入前用內建預設
 let cfg = DEFAULT_CONFIG;
+// 開啟彈窗時自動「偵測全部」（使用者可在彈窗上方關閉，存在 chrome.storage.local）
+let autoDetect = false;
 
 const $ = (id: string) => document.getElementById(id)!;
 
@@ -225,6 +229,8 @@ async function fetchProfile(): Promise<ProfileData | null> {
   const tabs: { id?: number; url?: string }[] = await new Promise(r => chrome.tabs.query({ active: true, currentWindow: true }, r));
   const tab = tabs[0];
   if (!tab?.id || !tab.url || !isWebUrl(tab.url)) return null;
+  // 只在個人主頁上使用：首頁、貼文、搜尋、子分頁等直接當成「不是主頁」，不注入腳本
+  if (!isProfilePageUrl(tab.url) || isNonAccount(tab.url)) return null;
   const file = scriptFileFor(tab.url);
   // 專屬腳本的網站通常已經載入好了，先直接問；問不到（例如安裝前就開著的分頁）或通用腳本，就注入再問
   if (file !== 'content/generic.js') {
@@ -306,6 +312,31 @@ function addDiscoveredUrl(url: string): void {
   }
 }
 
+// 文字按鈕開關（專案規則：不用勾選框，見 CLAUDE.md）。沿用 checkbox 的 checked / indeterminate / disabled
+// 介面與 change 事件，連結樹與分組的同步邏輯不必重寫。亮起＝加入，灰＝略過，「部分」＝底下有的加入有的略過。
+type Toggle = HTMLButtonElement & { checked: boolean; indeterminate: boolean };
+function createToggle(): Toggle {
+  const btn = document.createElement('button') as Toggle;
+  btn.type = 'button';
+  btn.className = 'toggle-btn';
+  let checked = false;
+  let mixed = false;
+  const paint = (): void => {
+    btn.setAttribute('aria-pressed', mixed ? 'mixed' : String(checked));
+    btn.textContent = mixed ? '部分' : checked ? '加入' : '略過';
+  };
+  Object.defineProperty(btn, 'checked', { get: () => checked, set: (v: boolean) => { checked = v; paint(); } });
+  Object.defineProperty(btn, 'indeterminate', { get: () => mixed, set: (v: boolean) => { mixed = v; paint(); } });
+  btn.addEventListener('click', () => {
+    checked = mixed ? true : !checked;
+    mixed = false;
+    paint();
+    btn.dispatchEvent(new Event('change'));
+  });
+  paint();
+  return btn;
+}
+
 function collectSubtreeUrls(tree: LinkTree): string[] {
   const urls = [normalizeUrl(tree.url)];
   for (const child of tree.children) {
@@ -319,8 +350,8 @@ function collectSubtreeUrls(tree: LinkTree): string[] {
 function updateAncestorCheckboxes(node: HTMLElement): void {
   let current = node.parentElement?.closest<HTMLElement>('.link-node') ?? null;
   while (current) {
-    const parentCheckbox = current.querySelector<HTMLInputElement>(':scope > .link-row > .link-checkbox');
-    const childCheckboxes = current.querySelectorAll<HTMLInputElement>(':scope > .child-links > .link-node > .link-row > .link-checkbox');
+    const parentCheckbox = current.querySelector<Toggle>(':scope > .link-row > .link-checkbox');
+    const childCheckboxes = current.querySelectorAll<Toggle>(':scope > .child-links > .link-node > .link-row > .link-checkbox');
     if (parentCheckbox && childCheckboxes.length > 0) {
       const checkedCount = [...childCheckboxes].filter(cb => cb.checked).length;
       parentCheckbox.checked = checkedCount === childCheckboxes.length;
@@ -337,8 +368,8 @@ function updateAncestorCheckboxes(node: HTMLElement): void {
 function syncCheckboxStatesBottomUp(root: HTMLElement): void {
   const nodes = [...root.querySelectorAll<HTMLElement>('.link-node')].reverse();
   for (const current of nodes) {
-    const parentCheckbox = current.querySelector<HTMLInputElement>(':scope > .link-row > .link-checkbox');
-    const childCheckboxes = current.querySelectorAll<HTMLInputElement>(':scope > .child-links > .link-node > .link-row > .link-checkbox');
+    const parentCheckbox = current.querySelector<Toggle>(':scope > .link-row > .link-checkbox');
+    const childCheckboxes = current.querySelectorAll<Toggle>(':scope > .child-links > .link-node > .link-row > .link-checkbox');
     if (parentCheckbox && childCheckboxes.length > 0) {
       const checkedCount = [...childCheckboxes].filter(cb => cb.checked).length;
       parentCheckbox.checked = checkedCount === childCheckboxes.length;
@@ -358,9 +389,8 @@ function createLinkNode(tree: LinkTree, depth: number): HTMLDivElement {
   const row = document.createElement('div');
   row.className = 'link-row';
 
-  const checkbox = document.createElement('input');
-  checkbox.type = 'checkbox';
-  checkbox.className = 'link-checkbox';
+  const checkbox = createToggle();
+  checkbox.classList.add('link-checkbox');
   checkbox.checked = !uncheckedUrls.has(normalized) && !isNonAccount(normalized);
   if (isNonAccount(normalized)) { checkbox.disabled = true; checkbox.title = '不是帳號（商品頁、貼文、首頁等），不會加入'; }
   checkbox.addEventListener('change', () => {
@@ -371,7 +401,7 @@ function createLinkNode(tree: LinkTree, depth: number): HTMLDivElement {
       if (checkbox.checked) uncheckedUrls.delete(url);
       else uncheckedUrls.add(url);
     }
-    node.querySelectorAll<HTMLInputElement>('.link-checkbox').forEach(cb => {
+    node.querySelectorAll<Toggle>('.link-checkbox').forEach(cb => {
       if (cb.disabled) return;
       cb.checked = checkbox.checked;
       cb.indeterminate = false;
@@ -597,6 +627,7 @@ async function onExpand(btn: HTMLButtonElement, parentNode: HTMLDivElement, tree
 
 async function smartDetectAll(): Promise<void> {
   const btn = $('btnSmartDetect') as HTMLButtonElement;
+  if (btn.disabled) return; // 已經在偵測中（自動偵測與手動按鈕不重複跑）
   btn.disabled = true;
   let sawNothing = false;
 
@@ -631,6 +662,7 @@ async function smartDetectAll(): Promise<void> {
 
 function updateCheckedCount(): void {
   $('previewCount').textContent = String([...allDiscoveredUrls].filter(u => !uncheckedUrls.has(u) && !isNonAccount(u)).length);
+  applySiteMarks();
 }
 
 function updatePreview(): void {
@@ -663,8 +695,7 @@ function updatePreview(): void {
     const header = document.createElement('div');
     header.className = 'preview-group-header';
 
-    const groupCheckbox = document.createElement('input');
-    groupCheckbox.type = 'checkbox';
+    const groupCheckbox = createToggle();
     const allChecked = urls.every(u => !uncheckedUrls.has(u));
     const noneChecked = urls.every(u => uncheckedUrls.has(u));
     groupCheckbox.checked = allChecked;
@@ -679,14 +710,14 @@ function updatePreview(): void {
     header.appendChild(label);
     group.appendChild(header);
 
-    const itemCheckboxes: HTMLInputElement[] = [];
+    const itemCheckboxes: Toggle[] = [];
 
     for (const url of urls) {
       const item = document.createElement('div');
       item.className = 'preview-item';
+      item.dataset.url = url;
 
-      const checkbox = document.createElement('input');
-      checkbox.type = 'checkbox';
+      const checkbox = createToggle();
       checkbox.checked = !uncheckedUrls.has(url);
       if (cat.id === NON_ACCOUNT.id) { checkbox.checked = false; checkbox.disabled = true; checkbox.title = '不是帳號，不會加入'; }
       itemCheckboxes.push(checkbox);
@@ -716,6 +747,9 @@ function updatePreview(): void {
       item.appendChild(checkbox);
       item.appendChild(icon);
       item.appendChild(link);
+      const badge = document.createElement('span');
+      badge.className = 'site-badge';
+      item.appendChild(badge);
       group.appendChild(item);
     }
 
@@ -733,6 +767,7 @@ function updatePreview(): void {
 
     list.appendChild(group);
   }
+  applySiteMarks();
 }
 
 function renderFromState(state: SavedState): void {
@@ -872,6 +907,13 @@ function createCandidateCard(c: NameCandidate, reasonText?: string): HTMLElement
 // ── 打開彈窗就查：網站上是不是已經有這位。有的話先顯示現況，可以直接「加到這張」或加入我的分類 ──
 interface MyList { id: string; name: string; artistIds: string[] }
 let lookupSignature = '';
+let lookupCandidates: NameCandidate[] = [];
+// 使用者（或預設）在預覽裡選好的去向；送出時直接帶上，伺服器就不會再問一次
+let pickedChoice: NameChoice | undefined;
+const pickedCandidate = (): NameCandidate | undefined => {
+  const pick = pickedChoice;
+  return pick && 'mergeInto' in pick ? lookupCandidates.find(c => c.id === pick.mergeInto) : undefined;
+};
 let lookupTimer: ReturnType<typeof setTimeout> | undefined;
 
 function scheduleLookup(): void {
@@ -902,9 +944,15 @@ async function refreshExisting(links: string[]): Promise<void> {
       const lr = await fetch(`${API_BASE}/api/lists`, { credentials: 'include' }).catch(() => null);
       if (lr?.ok) lists = (await lr.json()) as MyList[];
     }
+    lookupCandidates = candidates;
+    if (!choiceStillValid(pickedChoice, candidates)) pickedChoice = defaultChoice(candidates, currentProfile.profileUrl, normalizeUrl);
     renderExisting(box, candidates, lists);
+    applySiteMarks();
   } catch {
+    lookupCandidates = [];
+    pickedChoice = undefined;
     box.style.display = 'none'; // 查不到不影響原本的流程，加入時伺服器仍會把關
+    applySiteMarks();
   }
 }
 
@@ -968,30 +1016,85 @@ function renderExisting(box: HTMLElement, candidates: NameCandidate[], lists: My
   box.style.display = '';
   const title = document.createElement('div');
   title.className = 'existing-title';
-  title.textContent = '網站上已有可能是同一位：';
+  const sure = candidates.some(c => currentProfile && isSameArtist(c, currentProfile.profileUrl, normalizeUrl));
+  title.textContent = sure ? '這個帳號已在網站上：' : '網站上已有名稱相近的繪師，請選擇：';
   box.appendChild(title);
+
+  const radio = (value: string, labelText: string, checked: boolean): HTMLElement => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pick-btn';
+    btn.dataset.value = value;
+    btn.setAttribute('aria-pressed', String(checked));
+    btn.textContent = labelText;
+    btn.addEventListener('click', () => {
+      pickedChoice = value === 'new' ? { forceNew: true } : { mergeInto: value };
+      // 單選：只有被按的這顆亮起
+      box.querySelectorAll<HTMLElement>('.pick-btn').forEach(b => b.setAttribute('aria-pressed', String(b === btn)));
+      applySiteMarks();
+    });
+    return btn;
+  };
+
   for (const c of candidates) {
     const item = document.createElement('div');
     item.className = 'existing-item';
+    const isSure = !!currentProfile && isSameArtist(c, currentProfile.profileUrl, normalizeUrl);
+    item.appendChild(radio(c.id, isSure ? `是這位：補充到「${c.name}」` : `是同一位：加到「${c.name}」`, !!pickedChoice && 'mergeInto' in pickedChoice && pickedChoice.mergeInto === c.id));
     item.appendChild(createCandidateCard(c));
     const actions = document.createElement('div');
     actions.className = 'existing-actions';
-
-    const merge = document.createElement('button');
-    merge.type = 'button';
-    merge.className = 'btn secondary';
-    merge.textContent = '是同一位：加到這張';
-    merge.addEventListener('click', () => { showView('loading'); void submitArtist({ mergeInto: c.id }); });
     const open = document.createElement('a');
     open.href = `${API_BASE}/a/${encodeURIComponent(c.id)}`;
     open.target = '_blank';
     open.rel = 'noopener';
     open.textContent = '在網站上開啟';
-    actions.append(merge, open);
-
+    actions.append(open);
     appendListButtons(actions, c.id, lists);
     item.appendChild(actions);
     box.appendChild(item);
+  }
+  const other = document.createElement('div');
+  other.className = 'existing-item';
+  other.appendChild(radio('new', '不是同一位：另外建立新卡', !!pickedChoice && 'forceNew' in pickedChoice));
+  box.appendChild(other);
+  const summary = document.createElement('div');
+  summary.id = 'mergeSummary';
+  summary.className = 'merge-summary';
+  box.appendChild(summary);
+}
+
+// 依目前選擇更新：主按鈕文字、連結清單的「已在站上／新增」標記、類型按鈕標記、摘要
+function applySiteMarks(): void {
+  const label = submitLabel(lookupCandidates, pickedChoice);
+  const btn = $('btnSubmit') as HTMLButtonElement;
+  if (btn.dataset.sending !== '1') { btn.textContent = label.text; btn.disabled = label.disabled; }
+
+  const cand = pickedCandidate();
+  const checked = [...allDiscoveredUrls].filter(u => !uncheckedUrls.has(u) && !isNonAccount(u));
+  const plan = cand ? planMerge(cand, checked, selectedTypes(), normalizeUrl) : null;
+  const have = cand ? new Set((cand.accounts ?? []).map(a => normalizeUrl(a.url))) : null;
+  document.querySelectorAll<HTMLElement>('#previewList .preview-item').forEach(item => {
+    const url = item.dataset.url ?? '';
+    const badge = item.querySelector<HTMLElement>('.site-badge');
+    if (!badge) return;
+    const nonAccount = isNonAccount(url);
+    const known = !!have && !nonAccount && have.has(normalizeUrl(url));
+    const fresh = !!have && !nonAccount && !known;
+    badge.textContent = known ? '已在站上' : fresh ? '新增' : '';
+    badge.className = 'site-badge' + (known ? ' known' : fresh ? ' fresh' : '');
+  });
+  document.querySelectorAll<HTMLElement>('#typePicker .type-btn').forEach(b => {
+    const on = !!cand && (cand.types ?? []).includes(b.dataset.type ?? '');
+    b.classList.toggle('on-site', on);
+    b.title = on ? '網站上已有這個類型' : '';
+  });
+  const summary = document.getElementById('mergeSummary');
+  if (summary) {
+    summary.textContent = cand && plan
+      ? `站上已有 ${cand.accounts?.length ?? 0} 條連結；這次勾選 ${checked.length} 條，其中 ${plan.added.length} 條是新增` +
+        (plan.newTypes.length > 0 ? `，另新增 ${plan.newTypes.length} 個類型` : '')
+      : '';
   }
 }
 
@@ -1025,8 +1128,9 @@ function namesFor(urls: string[]): Record<string, string> | undefined {
 
 function setSubmitting(submitting: boolean): void {
   const btn = $('btnSubmit') as HTMLButtonElement;
-  btn.disabled = submitting;
-  btn.textContent = submitting ? '送出中...' : '加入觀測';
+  if (submitting) { btn.dataset.sending = '1'; btn.disabled = true; btn.textContent = '送出中...'; return; }
+  delete btn.dataset.sending;
+  applySiteMarks();
 }
 
 // 使用者勾選的繪師類型（沒勾＝未標示）；值與伺服器的類型 id 相同
@@ -1035,11 +1139,12 @@ function selectedTypes(): string[] {
 }
 
 document.querySelectorAll<HTMLElement>('#typePicker .type-btn').forEach(btn => {
-  btn.addEventListener('click', () => btn.setAttribute('aria-pressed', String(btn.getAttribute('aria-pressed') !== 'true')));
+  btn.addEventListener('click', () => { btn.setAttribute('aria-pressed', String(btn.getAttribute('aria-pressed') !== 'true')); applySiteMarks(); });
 });
 
-async function submitArtist(choice?: NameChoice): Promise<void> {
+async function submitArtist(explicit?: NameChoice): Promise<void> {
   if (!currentProfile) return;
+  const choice = explicit ?? pickedChoice;
 
   setSubmitting(true);
 
@@ -1087,6 +1192,8 @@ async function submitArtist(choice?: NameChoice): Promise<void> {
 
 async function init(): Promise<void> {
   cfg = await loadConfig(API_BASE);
+  autoDetect = await loadAutoDetect(chrome.storage.local);
+  paintAutoDetect();
   await cleanupLeftoverTabs();
   setSubmitting(false);
   showView('loading');
@@ -1109,6 +1216,8 @@ async function init(): Promise<void> {
   } else {
     if (avatarChanged) await chrome.storage.session.remove(getStorageKey(profile.profileUrl));
     renderProfile(profile);
+    // 第一次打開這個頁面才自動偵測；之前偵測過的（renderFromState）已經有結果，不重跑
+    if (autoDetect) void smartDetectAll();
   }
 }
 
@@ -1126,6 +1235,18 @@ $('btnCancel').addEventListener('click', () => window.close());
 $('btnRetry').addEventListener('click', init);
 $('btnNameCancel').addEventListener('click', init);
 $('btnSmartDetect').addEventListener('click', smartDetectAll);
+function paintAutoDetect(): void {
+  const btn = $('autoDetect');
+  btn.setAttribute('aria-pressed', String(autoDetect));
+  btn.textContent = `開啟時自動偵測全部連結：${autoDetect ? '開' : '關'}`;
+}
+$('autoDetect').addEventListener('click', () => {
+  autoDetect = !autoDetect;
+  paintAutoDetect();
+  void saveAutoDetect(chrome.storage.local, autoDetect);
+  // 現在才打開，而且正在看預覽、還沒偵測過：順手跑一次
+  if (autoDetect && $('profilePreview').style.display !== 'none') void smartDetectAll();
+});
 $('btnRefresh').addEventListener('click', () => {
   chrome.storage.session.clear().then(() => {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {

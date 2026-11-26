@@ -39,3 +39,53 @@ export function candidateReason(c: NameCandidate): string {
 export function withChoice<T extends object>(body: T, choice?: NameChoice): T & Partial<NameChoice> {
   return choice ? { ...body, ...choice } : { ...body };
 }
+
+// ── 預覽階段：先決定「加到哪張」，送出時就不必再問一次 ──
+
+/** 這個頁面的網址本身已在候選卡上，等於確定是同一位（不是只有名稱相近）。 */
+export function isSameArtist(c: NameCandidate, profileUrl: string, norm: (u: string) => string): boolean {
+  const key = norm(profileUrl);
+  return (c.sharedLinks ?? []).some(u => norm(u) === key);
+}
+
+/** 預設選擇：確定是同一位就預選那張；只有名稱相近則不預選，讓使用者自己決定。 */
+export function defaultChoice(cands: readonly NameCandidate[], profileUrl: string, norm: (u: string) => string): NameChoice | undefined {
+  const sure = cands.find(c => isSameArtist(c, profileUrl, norm));
+  return sure ? { mergeInto: sure.id } : undefined;
+}
+
+/** 目前的選擇還能不能用（候選卡重新查詢後可能消失）。 */
+export function choiceStillValid(choice: NameChoice | undefined, cands: readonly NameCandidate[]): boolean {
+  if (!choice) return false;
+  return 'forceNew' in choice || cands.some(c => c.id === choice.mergeInto);
+}
+
+export interface MergePlan {
+  /** 勾選的連結中站上已經有的 */
+  existing: string[];
+  /** 勾選的連結中站上還沒有的（加入後會新增） */
+  added: string[];
+  /** 站上已公開的類型裡，使用者這次也勾了的 */
+  knownTypes: string[];
+  /** 使用者勾了、站上還沒有的類型 */
+  newTypes: string[];
+}
+
+export function planMerge(c: NameCandidate, checkedUrls: readonly string[], picked: readonly string[], norm: (u: string) => string): MergePlan {
+  const have = new Set((c.accounts ?? []).map(a => norm(a.url)));
+  const existing = checkedUrls.filter(u => have.has(norm(u)));
+  const added = checkedUrls.filter(u => !have.has(norm(u)));
+  const onSite = new Set(c.types ?? []);
+  return { existing, added, knownTypes: picked.filter(t => onSite.has(t)), newTypes: picked.filter(t => !onSite.has(t)) };
+}
+
+/** 主按鈕文字；undefined 的 disabled 表示可按。有候選卡但還沒選時要求先選。 */
+export function submitLabel(cands: readonly NameCandidate[], choice: NameChoice | undefined): { text: string; disabled: boolean } {
+  if (choice && 'mergeInto' in choice) {
+    const c = cands.find(x => x.id === choice.mergeInto);
+    return { text: c ? `補充到「${c.name}」` : '加入觀測', disabled: false };
+  }
+  if (choice) return { text: '另建新卡並加入觀測', disabled: false };
+  if (cands.length > 0) return { text: '請先選擇是不是同一位', disabled: true };
+  return { text: '加入觀測', disabled: false };
+}

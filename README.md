@@ -13,7 +13,7 @@
 
 Edge、Brave 或想自己從原始碼安裝的人，用下面的手動安裝（Chromium 系列瀏覽器都可以）：
 
-1. 到 [Releases](../../releases/latest) 下載 `deadlive-extension-1.1.0.zip`。
+1. 到 [Releases](../../releases/latest) 下載 `deadlive-extension-tester-1.1.1.zip`。
 2. **解壓縮**到一個固定的資料夾（例如 `文件/deadlive-extension`）。安裝後不要刪除或移動這個資料夾，瀏覽器是直接從這裡讀檔案的。
 3. 網址列輸入 `chrome://extensions`（Brave 是 `brave://extensions`，Edge 是 `edge://extensions`）。
 4. 打開右上角的「**開發人員模式**」。
